@@ -300,16 +300,28 @@ def RemoteTrainer(estimator, metadata, last_checkpoint_state, run_id, dataset_id
                         metric_value_groups = construct_metric_value_holders(
                             metric_cls, metric_fn_groups, label_columns, hvd)
 
+                        import time
+                        total_fetch_time = 0
+                        total_run_time = 0
                         # iterate on one epoch
                         for batch_idx in range(steps_per_epoch):
+                            start_time = time.time()
                             row = next(train_loader_iter)
+                            load_time = time.time() - start_time
                             inputs, labels, sample_weights = prepare_batch(row)
                             outputs, loss = train_minibatch(model, optimizer, transform_outputs,
                                                             loss_fn, inputs, labels, sample_weights)
                             update_metrics(metric_value_groups, outputs, labels)
                             train_loss.update(loss)
-                            print_metrics(batch_idx, train_loss, metric_value_groups, 'train')
+                            total_time = time.time() - start_time
 
+                            total_fetch_time += load_time
+                            total_run_time += total_time
+                            if batch_idx %100 == 0:
+                                print(total_fetch_time, total_run_time)
+                                total_fetch_time = 0
+                                total_run_time = 0
+                            print_metrics(batch_idx, train_loss, metric_value_groups, 'train')
                         return aggregate_metrics('train', epoch, train_loss, metric_value_groups)
 
                     if should_validate:
